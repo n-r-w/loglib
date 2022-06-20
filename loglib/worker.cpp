@@ -43,9 +43,20 @@ bool Worker::SendToServer(const std::vector<RecordPtr>& records, int& error_code
 		j_obj["session"] = r->session;
 		j_obj["info"] = r->info;
 		j_obj["url"] = r->url;
+		j_obj["httpType"] = r->httpType;
 		j_obj["properties"] = r->properties;
 		j_obj["httpHeaders"] = r->httpHeaders;
-		j_obj["body"] = json::parse(r->jsonBody);
+
+		if (!r->jsonBody.empty())
+		{
+			try
+			{
+				j_obj["body"] = json::parse(r->jsonBody);
+			}
+			catch (...)
+			{
+			}
+		}
 
 		j_total.push_back(j_obj);
 	}
@@ -55,29 +66,38 @@ bool Worker::SendToServer(const std::vector<RecordPtr>& records, int& error_code
 //	cli.set_read_timeout(5, 0);
 //	cli.set_write_timeout(5, 0);
 
-//	auto res = cli.Get("/api/add", {{"X-Authorization", _token}});
-	auto res = cli.Post("/api/add", {
-										{"X-Authorization", _token},
-										{"Connection", "keep-alive"},
-										{"Content-Type", "application/json"},
-										{"User-Agent", "loglib"},
-									},
-						j_total.dump(), "application/json");
-
-	if (!res)
+	try
 	{
-		error_code = (int)res.error();
-		error_string = to_string(res.error());
+		auto res = cli.Post("/api/add",
+							{
+							 {"X-Authorization", _token},
+							 {"Connection", "keep-alive"},
+							 {"Content-Type", "application/json"},
+							 {"User-Agent", "loglib"},
+							 },
+							j_total.dump(),
+							"application/json");
+		if (!res)
+		{
+			error_code = (int)res.error();
+			error_string = to_string(res.error());
+			return false;
+		}
+
+		if (res->status != 201)
+		{
+			error_code = res->status;
+			error_string = res->reason + ", " + res->body;
+			return false;
+		}
+	}
+	catch (...)
+	{
+		// кривые данные? игнорируем
+		error_code = 400;
+		error_string = "invalid data";
 		return false;
 	}
-
-	if (res->status != 201)
-	{
-		error_code = res->status;
-		error_string = res->reason + ", " + res->body;
-		return false;
-	}
-
 	return true;
 }
 

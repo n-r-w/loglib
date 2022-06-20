@@ -23,6 +23,5 @@ target_include_directories(${name} PRIVATE
 
 target_compile_definitions(${name} PRIVATE
     FMT_HEADER_ONLY
-    CPPHTTPLIB_NO_EXCEPTIONS
-#    CPPHTTPLIB_USE_POLL
+    CPPHTTPLIB_NO_EXCEPTIONS    
 )
