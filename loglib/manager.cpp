@@ -99,7 +99,6 @@ std::string Manager::Start(const std::string& token, const std::string& host, ui
 	std::lock_guard<std::mutex> lock(_manager_mutex);
 
 	assert(_manager == nullptr);
-	assert(!error_file_name.empty());
 
 	_host = host;
 	_port = port;
