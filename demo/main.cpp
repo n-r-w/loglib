@@ -41,7 +41,7 @@ int main()
 	const size_t seconds = 0; // длительность теста
 
 	Logger::Manager::Start(token, "localhost", 8080, work_thread_count, packet_size, auto_flush_size, max_buffer_size, concat_records, "");
-	Logger::Manager::SetErrorFunc(errorFunc);
+//	Logger::Manager::SetErrorFunc(errorFunc);
 	Logger::Manager::EnableRPS(true);
 
 	std::atomic<unsigned long long> num = 0;
@@ -133,10 +133,10 @@ R"(
 	while (seconds == 0 || std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - begin).count() < seconds)
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-		std::cout << fmt::format("RPC: {}. Total record created: {}. Sleep rate: {}",
+		std::cout << fmt::format("RPC: {}. Total record created: {}. Sleep rate: {}. Buffer size: {}",
 								 Logger::Manager::RPS(),
 								 Logger::Manager::TotalProcessed(),
-								 sleep_rate_count > 0 ? sleep_rate_sum / sleep_rate_count : 0) << std::endl;
+								 sleep_rate_count > 0 ? sleep_rate_sum / sleep_rate_count : 0, Logger::Manager::BufferSize()) << std::endl;
 	}
 
 	to_stop = true;
