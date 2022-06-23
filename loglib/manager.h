@@ -10,12 +10,13 @@
 
 namespace Logger
 {
+using ErrorFunc = std::function<void(const std::string& error)>;
 
 class Manager : protected StoppableWorker
 {
 public:
 	//! Запуск. Возвращает текст ошибки при невозможности логина к серверу
-	static std::string Start(
+	static void Start(
 		//! Токен доступа
 		const std::string& token,
 		//! Адрес сервера
@@ -29,26 +30,38 @@ public:
 		//! Максимальный размер буффера, после которого начнется его принудительное сбрасывание
 		//! Если 0, то никогда (возможно непредсказуемое использование памяти, если будет не успевать отправлять их на сервер логов)
 		size_t flush_buffer_size,
+		//! Максимальный размер буфера, при котором новые записи будут отбрасываться. Необходимо для исключения переполнения памяти в случае,
+		//! когда количество вызовов AddRecord превышает скорость обработки буфера
+		size_t max_buffer_size,
 		//! При наличии в буфере нескольких записей, сколько из них отправлять их одним пакетом на сервер логов
 		bool concat_records,
 		//! Имя файла, куда будут выводиться ошибки при невозможности отправки лога обычным способом
 		//! Если не задано, то игнорируется
 		const std::string& error_file_name);
+	//! Подождать запуск
+	static void WaitStart();
 	//! Остановка
 	static void Stop();
-	//! Добавить запись
-	static void AddRecord(const RecordPtr& record);
+	//! Задать функцию для логгирования ошибок
+	static void SetErrorFunc(ErrorFunc error_func);
+	//! Добавить запись. Если возвращает false, значит буфер переполнен
+	static bool AddRecord(const RecordPtr& record);
+	//! Сервер запущен
+	static bool isStarted();
 	//! Суммарный размер буфера
 	static size_t BufferSize();
 
 	//! Вывод в консоль для тестирования
-	static void CoutPrint(const std::string& message);
+	static void CoutPrint(const std::string& message, bool error);
 	//! Если не удалось выполнить ProcessRecords (например недоступен внешний сервис), то пишем ошибки в локальный файл
 	static void SaveErrors(const std::vector<RecordPtr>& records, int error_code, const std::string& error_text);
 
+	//! Разрешить вычисление RPS
+	static void EnableRPS(bool b);
 	static void RegisterProcessedCount(uint64_t n);
 	static uint64_t TotalProcessed();
-	static double RPC();
+	//! Количество операций в секунду
+	static double RPS();
 
 private:
 	//! Запуск
@@ -66,12 +79,15 @@ private:
 		//! Максимальный размер буффера, после которого начнется его принудительное сбрасывание
 		//! Если 0, то никогда
 		size_t flush_buffer_size,
+		//! Максимальный размер буфера, при котором новые записи будут отбрасываться. Необходимо для исключения переполнения памяти в случае,
+		//! когда количество вызовов AddRecord превышает скорость обработки буфера
+		size_t max_buffer_size,
 		//! При наличии в буфере нескольких записей, отправлять их одним пакетом
 		bool concat_records);
 	//! Остановка
 	void StopHelper();
 	//! Добавить запись
-	void AddRecordHelper(const RecordPtr& record);
+	bool AddRecordHelper(const RecordPtr& record);
 	//! Суммарный размер буфера
 	size_t BufferSizeHelper() const;
 
@@ -79,6 +95,8 @@ private:
 	std::vector<std::unique_ptr<std::thread>> _worker_threads;
 	std::atomic_bool _started = false;
 
+	std::mutex _last_buffer_overflow_mutex;
+	std::unique_ptr<std::chrono::steady_clock::time_point> _last_buffer_overflow;
 
 	std::string _token;
 	static std::string _host;
@@ -97,7 +115,14 @@ private:
 	static std::string _error_file_name;
 	//! Файл журнала
 	static std::ofstream _log_file;
+	//! Максимальный размер буфера, при котором новые записи будут отбрасываться. Необходимо для исключения переполнения памяти в случае,
+	//! когда количество вызовов AddRecord превышает скорость обработки буфера
+	static size_t _max_buffer_size;
 
+	static ErrorFunc _error_func;
+
+	//! Разрешить вычисление RPS
+	static std::atomic_bool _enable_rps;
 	static std::atomic<int64_t> _processed_count;
 	static std::atomic<std::chrono::steady_clock::time_point> _processed_time;
 };

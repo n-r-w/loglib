@@ -6,6 +6,14 @@
 
 #define TEST 0
 
+void errorFunc(const std::string& error)
+{
+	static std::mutex m;
+	m.lock();
+	std::cerr << error << std::endl;
+	m.unlock();
+}
+
 int main()
 {
 	// настройки менеджера логов
@@ -15,7 +23,10 @@ int main()
 	const size_t work_thread_count = 1;
 #else
 	const size_t work_thread_count =  (size_t)std::thread::hardware_concurrency() / 2; // количество потоков на обработку логов
-#endif
+#endif                                                                                                                                                                                                                                                   \
+	// Максимальный размер буфера, при котором новые записи будут отбрасываться. Необходимо для исключения переполнения памяти в случае,
+	// когда количество вызовов AddRecord превышает скорость обработки буфера
+	size_t max_buffer_size = work_thread_count * auto_flush_size;
 	const bool concat_records = true; // упаковывать ли несколько записей в один json. отключение только для тестирования
 	const std::string token = "dbda0fba4da680c615340d6faa2868eb5413c3b837640078b87149872257f842";
 
@@ -29,13 +40,9 @@ int main()
 	const size_t sleep_pow = 2; // настройка авторегулирования притормаживания клиентов чтобы они не забили буфер менеджера логов
 	const size_t seconds = 0; // длительность теста
 
-	auto err = Logger::Manager::Start(token, "localhost", 8080, work_thread_count, packet_size, auto_flush_size, concat_records, "errors.txt");
-//	auto err = Logger::Manager::Start("localhost", 8080, "admin", "123", work_thread_count, packet_size, auto_flush_size, concat_records, "errors.txt");
-	if (!err.empty())
-	{
-		Logger::Manager::CoutPrint(err);
-		return 1;
-	}
+	Logger::Manager::Start(token, "localhost", 8080, work_thread_count, packet_size, auto_flush_size, max_buffer_size, concat_records, "");
+	Logger::Manager::SetErrorFunc(errorFunc);
+	Logger::Manager::EnableRPS(true);
 
 	std::atomic<unsigned long long> num = 0;
 	std::atomic_bool to_stop = false;
@@ -122,14 +129,14 @@ R"(
 		}));
 	}
 
-	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+	auto begin = std::chrono::steady_clock::now();
 	while (seconds == 0 || std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - begin).count() < seconds)
 	{
 		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-		Logger::Manager::CoutPrint(fmt::format("RPC: {}. Total record created: {}. Sleep rate: {}",
-											   Logger::Manager::RPC(),
-											   Logger::Manager::TotalProcessed(),
-											   sleep_rate_count > 0 ? sleep_rate_sum / sleep_rate_count : 0));
+		std::cout << fmt::format("RPC: {}. Total record created: {}. Sleep rate: {}",
+								 Logger::Manager::RPS(),
+								 Logger::Manager::TotalProcessed(),
+								 sleep_rate_count > 0 ? sleep_rate_sum / sleep_rate_count : 0) << std::endl;
 	}
 
 	to_stop = true;

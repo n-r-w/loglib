@@ -36,6 +36,8 @@ bool Worker::SendToServer(const std::vector<RecordPtr>& records, int& error_code
 	for (auto& r : records)
 	{
 		auto j_obj = json::object();
+
+		j_obj["logTime"] = date::format("%FT%TZ", date::floor<std::chrono::microseconds>(r->time));
 		j_obj["service"] = r->service;
 		j_obj["source"] = r->source;
 		j_obj["category"] = r->category;
@@ -44,6 +46,8 @@ bool Worker::SendToServer(const std::vector<RecordPtr>& records, int& error_code
 		j_obj["info"] = r->info;
 		j_obj["url"] = r->url;
 		j_obj["httpType"] = r->httpType;
+		j_obj["httpCode"] = r->httpCode;
+		j_obj["errorCode"] = r->errorCode;
 		j_obj["properties"] = r->properties;
 		j_obj["httpHeaders"] = r->httpHeaders;
 
@@ -62,19 +66,19 @@ bool Worker::SendToServer(const std::vector<RecordPtr>& records, int& error_code
 	}
 
 	httplib::Client cli(_host, _port);
-//	cli.set_connection_timeout(2);
-//	cli.set_read_timeout(5, 0);
-//	cli.set_write_timeout(5, 0);
+	//	cli.set_connection_timeout(2);
+	//	cli.set_read_timeout(5, 0);
+	//	cli.set_write_timeout(5, 0);
 
 	try
 	{
 		auto res = cli.Post("/api/add",
 							{
-							 {"X-Authorization", _token},
-							 {"Connection", "keep-alive"},
-							 {"Content-Type", "application/json"},
-							 {"User-Agent", "loglib"},
-							 },
+								{"X-Authorization", _token},
+								{"Connection", "keep-alive"},
+								{"Content-Type", "application/json"},
+								{"User-Agent", "loglib"},
+							},
 							j_total.dump(),
 							"application/json");
 		if (!res)
@@ -104,7 +108,7 @@ bool Worker::SendToServer(const std::vector<RecordPtr>& records, int& error_code
 void Worker::Start(size_t number)
 {
 	_number = number;
-	Manager::CoutPrint(fmt::format("worker {} started", _number));
+//	Manager::CoutPrint(fmt::format("worker {} started", _number), false);
 
 	while (!IsStopRequested())
 	{
@@ -122,7 +126,7 @@ void Worker::Start(size_t number)
 				{
 					process_size = size;
 					full_lock = true;
-					Manager::CoutPrint(fmt::format("Worker {} buffer full => auto flush", _number));
+					Manager::CoutPrint(fmt::format("Worker {} buffer full => auto flush", _number), true);
 				}
 			}
 
@@ -137,7 +141,7 @@ void Worker::Start(size_t number)
 
 	Flush();
 
-	Manager::CoutPrint(fmt::format("worker {} finished", _number));
+//	Manager::CoutPrint(fmt::format("worker {} finished", _number), false);
 }
 
 void Worker::Flush()
@@ -163,7 +167,7 @@ size_t Worker::BufferSize() const
 
 void Worker::StopRequest()
 {
-	Manager::CoutPrint(fmt::format("worker {} finishing...", _number));
+//	Manager::CoutPrint(fmt::format("worker {} finishing...", _number), false);
 
 	StoppableWorker::StopRequest();
 
