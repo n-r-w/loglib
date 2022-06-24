@@ -41,7 +41,7 @@ int main()
 	const size_t seconds = 0; // длительность теста
 
 	Logger::Manager::Start(token, "localhost", 8080, work_thread_count, packet_size, auto_flush_size, max_buffer_size, concat_records, "");
-	Logger::Manager::SetErrorFunc(errorFunc);
+	Logger::Manager::SetErrorFunc(errorFunc, std::chrono::seconds(1));
 	Logger::Manager::EnableRPS(true);
 
 	std::atomic<unsigned long long> num = 0;

@@ -27,6 +27,9 @@ std::string Manager::_error_file_name;
 std::ofstream Manager::_log_file;
 
 ErrorFunc Manager::_error_func = nullptr;
+std::chrono::seconds Manager::_error_period;
+std::mutex Manager::_last_error_mutex;
+std::unique_ptr<std::chrono::steady_clock::time_point> Manager::_last_error_time;
 
 std::atomic_bool Manager::_enable_rps = false;
 std::atomic<int64_t> Manager::_processed_count = 0;
@@ -80,16 +83,7 @@ bool Manager::AddRecordHelper(const RecordPtr& record)
 	if (_max_buffer_size > 0 && b_size > _max_buffer_size)
 	{
 		std::string err = fmt::format("{}: {}", "buffer overflow", b_size);
-
-		_last_buffer_overflow_mutex.lock();
-		if (_last_buffer_overflow == nullptr ||
-			std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - *_last_buffer_overflow).count() > 1)
-		{
-			_last_buffer_overflow = std::make_unique<std::chrono::steady_clock::time_point>(std::chrono::steady_clock::now());
-			CoutPrint(err, true);
-		}
-		_last_buffer_overflow_mutex.unlock();
-
+		CoutPrint(err, true);
 		SaveErrors({record}, 0, err);
 		return false;
 	}
@@ -159,9 +153,10 @@ void Manager::Stop()
 	_log_file.close();
 }
 
-void Manager::SetErrorFunc(ErrorFunc error_func)
+void Manager::SetErrorFunc(ErrorFunc error_func, std::chrono::seconds period)
 {
 	_error_func = error_func;
+	_error_period = period;
 }
 
 bool Manager::AddRecord(const RecordPtr& record)
@@ -191,8 +186,17 @@ void Manager::CoutPrint(const std::string& message, bool error)
 	if (message.empty())
 		return;
 
-	if (error && _error_func != nullptr)
+	if (error && _error_period > std::chrono::seconds(0))
 	{
+		std::lock_guard<std::mutex> lock(_last_error_mutex);
+		if (_last_error_time == nullptr || std::chrono::steady_clock::now() - *_last_error_time > _error_period)
+			_last_error_time = std::make_unique<std::chrono::steady_clock::time_point>(std::chrono::steady_clock::now());
+		else
+			return;
+	}
+
+	if (error && _error_func != nullptr)
+	{		
 		_error_func(message);
 	}
 	else

@@ -43,7 +43,7 @@ public:
 	//! Остановка
 	static void Stop();
 	//! Задать функцию для логгирования ошибок
-	static void SetErrorFunc(ErrorFunc error_func);
+	static void SetErrorFunc(ErrorFunc error_func, std::chrono::seconds period);
 	//! Добавить запись. Если возвращает false, значит буфер переполнен
 	static bool AddRecord(const RecordPtr& record);
 	//! Сервер запущен
@@ -95,9 +95,6 @@ private:
 	std::vector<std::unique_ptr<std::thread>> _worker_threads;
 	std::atomic_bool _started = false;
 
-	std::mutex _last_buffer_overflow_mutex;
-	std::unique_ptr<std::chrono::steady_clock::time_point> _last_buffer_overflow;
-
 	std::string _token;
 	static std::string _host;
 	static uint16_t _port;
@@ -120,6 +117,9 @@ private:
 	static size_t _max_buffer_size;
 
 	static ErrorFunc _error_func;
+	static std::chrono::seconds _error_period;
+	static std::mutex _last_error_mutex;
+	static std::unique_ptr<std::chrono::steady_clock::time_point> _last_error_time;
 
 	//! Разрешить вычисление RPS
 	static std::atomic_bool _enable_rps;
